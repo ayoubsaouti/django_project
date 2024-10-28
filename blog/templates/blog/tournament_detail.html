@@ -1,0 +1,21 @@
+{% extends "blog/base.html" %}
+{% block content %}
+    <h2>{{ tournament.name }}</h2>
+    <p>Date créé : {{ tournament.date_created }}</p>
+    <p>Grille : {{ tournament.grid_size }}x{{ tournament.grid_size }}</p>
+    <p>Alignement pour gagner : {{ tournament.alignment_to_win }}</p>
+
+    <h3>Joueurs inscrits</h3>
+    <ul>
+        {% for player in tournament.players.all %}
+            <li>{{ player.username }}</li>
+        {% endfor %}
+    </ul>
+
+    {% if tournament.started %}
+        <h3>Partie</h3>
+        <a href="{% url 'play_tournament' tournament.id %}">Commencer le Tournoi</a>
+    {% else %}
+        <h3>En attente de plus de joueurs...</h3>
+    {% endif %}
+{% endblock %}

@@ -1,0 +1,17 @@
+{% extends "blog/base.html" %}
+{% block content %}
+    <h1>Join a Private Party :</h1>
+
+    <form method="post" action="{% url 'join-private-game' %}">
+        {% csrf_token %}
+        <div class="form-group">
+            <label for="access_code">Access Code :</label>
+            <input type="text" id="access_code" name="access_code" class="form-control" maxlength="10" required>
+        </div>
+        <button type="submit" class="btn btn-primary">Join the Party</button>
+
+        {% if error %}
+            <div class="alert alert-danger mt-3">{{ error }}</div>
+        {% endif %}
+    </form>
+{% endblock content %}

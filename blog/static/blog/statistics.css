@@ -1,0 +1,76 @@
+.statistics-container {
+    font-family: Arial, sans-serif;
+}
+
+.statistics-container h2 {
+    text-align: center;
+    margin-top: 20px;
+}
+
+.statistics-container h3 {
+    margin-top: 30px;
+    color: #333;
+}
+
+.statistics-container form {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-top: 20px;
+}
+
+.statistics-container form label {
+    margin-right: 10px;
+    font-weight: bold;
+}
+
+.statistics-container form select {
+    padding: 5px;
+    margin-right: 10px;
+}
+
+.statistics-container form button {
+    padding: 5px 10px;
+    background-color: #4CAF50;
+    color: white;
+    border: none;
+    cursor: pointer;
+    border-radius: 4px;
+}
+
+.statistics-container form button:hover {
+    background-color: #45a049;
+}
+
+.statistics-container p {
+    text-align: center;
+    margin-top: 20px;
+    font-size: 16px;
+}
+
+.statistics-container canvas {
+    display: block;
+    margin: 0 auto;
+    margin-top: 20px;
+    max-width: 90%;
+}
+
+.statistics-container .table {
+    width: 80%;
+    margin: 0 auto;
+    margin-top: 20px;
+    border-collapse: collapse;
+}
+
+.statistics-container .table th, .statistics-container .table td {
+    border: 1px solid #ddd;
+    padding: 8px;
+    text-align: center;
+}
+
+.statistics-container .table th {
+    padding-top: 12px;
+    padding-bottom: 12px;
+    background-color: #f2f2f2;
+    color: black;
+}

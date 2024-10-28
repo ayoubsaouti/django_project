@@ -1,0 +1,169 @@
+{% extends "blog/base.html" %}
+{% load static %}
+{% block content %}
+    <link rel="stylesheet" type="text/css" href="{% static 'blog/tournament_game.css' %}">
+
+    <h2>{{ post.title }}</h2>
+    <p>Grille : {{ post.size }}x{{ post.size }}</p>
+    <p>Alignement pour gagner : {{ post.alignmentToWin }}</p>
+
+    <h3>Joueurs</h3>
+    <ul>
+        {% for player in players %}
+            <li>{{ player.username }}</li>
+        {% endfor %}
+    </ul>
+
+    <div>
+        <h2 id="currentTurn">Player Turn: {{ post.current_player }}</h2>
+    </div>
+    <div id="notif"></div>
+
+    <table class="game_grid" id="game_grid">
+        {% for row in post.board %}
+            <tr>
+                {% for cell in row %}
+                    <td>
+                        <button class="cell" data-row="{{ forloop.parentloop.counter }}" data-col="{{ forloop.counter }}">
+                            {% if cell %}
+                                <img src="{{ player_symbols.cell }}" alt="{{ cell }}" class="symbol-image">
+                            {% endif %}
+                        </button>
+                    </td>
+                {% endfor %}
+            </tr>
+        {% endfor %}
+    </table>
+
+    <script>
+        $(document).ready(function() {
+            var currentPlayer = "{{ post.current_player }}";
+            var alignment = "{{ post.alignmentToWin }}";
+            var size = "{{ post.size }}";
+            var gameOver = false;
+            var notificationShown = false;
+
+            var board = {{ board|safe }};
+            var playerSymbols = {{ player_symbols|safe }};
+
+            function renderBoard(board) {
+                $('.cell').each(function() {
+                    var row = $(this).data('row') - 1;
+                    var col = $(this).data('col') - 1;
+                    var cellValue = board[row][col];
+                    if (cellValue) {
+                        $(this).html('<img src="' + playerSymbols[cellValue] + '" class="symbol-image">');
+                    } else {
+                        $(this).html('');
+                    }
+                });
+            }
+
+            renderBoard(board);
+
+            function refreshGameState() {
+                $.ajax({
+                    url: '{% url "get_game_state_tournament" post_id=post.id %}',
+                    type: 'GET',
+                    success: function(response) {
+                        var newBoard = response.board;
+                        var newCurrentPlayer = response.current_player;
+
+                        renderBoard(newBoard);
+                        $('#currentTurn').text('Player Turn: ' + newCurrentPlayer);
+
+                        currentPlayer = newCurrentPlayer;
+
+                        if (response.gameOver) {
+                            gameOver = true;
+                            if (!notificationShown) {
+                                if (response.draw) {
+                                    showNotification('Match nul !');
+                                } else if (response.winner) {
+                                    let message = `${response.winner} a gagné ! Les perdants sont : ${response.losers.join(', ')}.`;
+                                    showNotification(message);
+                                }
+                                notificationShown = true;
+                            }
+                        }
+                    },
+                    error: function(xhr, status, error) {
+                        console.error('Error fetching game state:', error);
+                    }
+                });
+            }
+
+            setInterval(refreshGameState, 500);
+
+            $('.cell').on('click', function() {
+                if (gameOver) {
+                    return;
+                }
+
+                var $this = $(this);
+                var row = parseInt($this.data('row'));
+                var col = parseInt($this.data('col'));
+
+                if (currentPlayer === "{{ user.username }}") {
+                    if ($this.html() === '') {
+                        $.ajax({
+                            url: '{% url "get_game_state_tournament" post_id=post.id %}',
+                            type: 'GET',
+                            success: function(response) {
+                                var currentBoard = response.board;
+                                var symbol = currentPlayer;
+
+                                currentBoard[row - 1][col - 1] = symbol;
+
+                                $this.html('<img src="' + playerSymbols[symbol] + '" class="symbol-image">');
+
+                                $.ajax({
+                                    url: '{% url "update_game_board" post_id=post.id %}',
+                                    type: 'POST',
+                                    contentType: 'application/json',
+                                    data: JSON.stringify({'board': currentBoard}),
+                                    headers: {
+                                        'X-CSRFToken': '{{ csrf_token }}'
+                                    },
+                                    success: function(response) {
+                                        console.log('Board updated successfully:', response);
+                                        currentPlayer = response.current_player;
+                                        $('#currentTurn').text('Player Turn: ' + currentPlayer);
+                                        if (response.gameOver) {
+                                            gameOver = true;
+                                            let message = `${response.winner} a gagné ! Les perdants sont : ${response.losers.join(', ')}.`;
+                                            showNotification(message);
+                                            notificationShown = true;
+                                        } else {
+                                            refreshGameState();
+                                        }
+                                    },
+                                    error: function(xhr, status, error) {
+                                        console.error('Error updating board:', error);
+                                        showNotification('Erreur lors de la mise à jour du tableau');
+                                    }
+                                });
+                            },
+                            error: function(xhr, status, error) {
+                                console.error('Error fetching game state:', error);
+                            }
+                        });
+                    } else {
+                        console.log('Cellule déjà occupée');
+                        showNotification('Cellule déjà occupée');
+                    }
+                } else {
+                    showNotification('Ce n\'est pas votre tour');
+                }
+            });
+
+            function showNotification(message) {
+                var notification = $('#notif');
+                notification.text(message).show();
+                setTimeout(function() {
+                    notification.fadeOut();
+                }, 2000);
+            }
+        });
+    </script>
+{% endblock %}

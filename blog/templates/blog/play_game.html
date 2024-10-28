@@ -1,0 +1,221 @@
+{% extends "blog/base.html" %}
+{% load static %}
+{% block content %}
+    <link rel="stylesheet" type="text/css" href="{% static 'blog/game.css' %}">
+
+    <div>
+        <h2 id="currentTurn">Player Turn: {{ post.current_player }}</h2>
+    </div>
+    <div id="notif"></div>
+
+    <!-- Game grid represented as a table -->
+    <table class="game_grid" id="game_grid">
+        {% for row in "x"|ljust:post.size %}
+            <tr>
+                {% for col in "x"|ljust:post.size %}
+                    <td>
+                        <!-- Button for each cell in the grid -->
+                        <button class="cell" id="cell{{ forloop.parentloop.counter }}_{{ forloop.counter }}"
+                                data-row="{{ forloop.parentloop.counter }}"
+                                data-col="{{ forloop.counter }}"></button>
+                    </td>
+                {% endfor %}
+            </tr>
+        {% endfor %}
+    </table>
+
+
+    <button id="abandonBtn">Give Up ?</button>
+
+    <!-- Modale de confirmation d'abandon -->
+    <div id="confirmationModal" class="modal" style="display:none;">
+        <div class="modal-content">
+            <span class="close" id="closeModal">&times;</span>
+            <p>Are you sure you want to abandon the game?</p>
+            <button id="confirmAbandon">Yes</button>
+            <button id="cancelAbandon">No</button>
+        </div>
+    </div>
+    <script>
+        $(document).ready(function() {
+            var p1 = "{{ post.author }}";
+            var p2 = "{{ post.player2 }}";
+            var currentPlayer = "{{ post.current_player }}";
+            var alignment = "{{ post.alignmentToWin }}";
+            var size = "{{ post.size }}";
+            var gameOver = false;
+            var notificationShown = false;
+
+            var board = {{ board|safe }};
+            var player1Symbol = '{{ player1_symbol }}';
+            var player2Symbol = '{{ player2_symbol }}';
+
+            function renderBoard(board) {
+                $('.cell').each(function() {
+                    var row = $(this).data('row') - 1;
+                    var col = $(this).data('col') - 1;
+                    var cellValue = board[row][col];
+                    if (cellValue === 'X') {
+                        $(this).html('<img src="' + player1Symbol + '" class="symbol-image">');
+                    } else if (cellValue === 'O') {
+                        $(this).html('<img src="' + player2Symbol + '" class="symbol-image">');
+                    } else {
+                        $(this).html('');
+                    }
+                });
+            }
+
+            renderBoard(board);
+
+            function refreshGameState() {
+                $.ajax({
+                    url: '{% url "get_game_state" post_id=post.id %}',
+                    type: 'GET',
+                    success: function(response) {
+                        var newBoard = response.board;
+                        var newCurrentPlayer = response.current_player;
+
+                        renderBoard(newBoard);
+                        $('#currentTurn').text('Player Turn: ' + newCurrentPlayer);
+
+                        currentPlayer = newCurrentPlayer;
+
+                        if (response.gameOver) {
+                            gameOver = true;
+                            if (!notificationShown) {
+                                if (response.draw) {
+                                    showNotification('Match nul !');
+                                } else if (response.winner && response.loser) {
+                                    showNotification(response.winner + ' a gagné ! ' + response.loser + ' a perdu.');
+                                }
+                                notificationShown = true;
+                            }
+                        }
+
+                        if (response.surrender) {
+                            gameOver = true;
+                            if (!notificationShown && response.winner && response.loser) {
+                                showNotification(response.loser + ' a abandonné la partie. ' + response.winner + ' a gagné !');
+                                notificationShown = true;
+                            }
+                        }
+                    },
+                    error: function(xhr, status, error) {
+                        console.error('Error fetching game state:', error);
+                    }
+                });
+            }
+
+            setInterval(refreshGameState, 500);
+
+            $('.cell').on('click', function() {
+                if (gameOver) {
+                    return;
+                }
+
+                var $this = $(this);
+                var row = parseInt($this.data('row')) - 1;
+                var col = parseInt($this.data('col')) - 1;
+
+                if (currentPlayer === "{{ user.username }}") {
+                    if ($this.html() === '') {
+                        $.ajax({
+                            url: '{% url "get_game_state" post_id=post.id %}',
+                            type: 'GET',
+                            success: function(response) {
+                                var currentBoard = response.board;
+                                var symbol = currentPlayer === p1 ? 'X' : 'O';
+
+                                currentBoard[row][col] = symbol;
+
+                                if (symbol === 'X') {
+                                    $this.html('<img src="' + player1Symbol + '" class="symbol-image">');
+                                } else {
+                                    $this.html('<img src="' + player2Symbol + '" class="symbol-image">');
+                                }
+
+                                $.ajax({
+                                    url: '{% url "update-board" post_id=post.id %}',
+                                    type: 'POST',
+                                    contentType: 'application/json',
+                                    data: JSON.stringify({'board': currentBoard}),
+                                    headers: {
+                                        'X-CSRFToken': '{{ csrf_token }}'
+                                    },
+                                    success: function(response) {
+                                        console.log('Board updated successfully:', response);
+                                        currentPlayer = (currentPlayer === p1 ? p2 : p1);
+                                        $('#currentTurn').text('Player Turn: ' + currentPlayer);
+                                        if (response.draw) {
+                                            gameOver = true;
+                                            showNotification('Match nul !');
+                                            notificationShown = true;
+                                        } else {
+                                            refreshGameState();
+                                        }
+                                    },
+                                    error: function(xhr, status, error) {
+                                        console.error('Error updating board:', error);
+                                        showNotification('Erreur lors de la mise à jour du tableau');
+                                    }
+                                });
+                            },
+                            error: function(xhr, status, error) {
+                                console.error('Error fetching game state:', error);
+                            }
+                        });
+                    } else {
+                        console.log('Cellule déjà occupée');
+                        showNotification('Cellule déjà occupée');
+                    }
+                } else {
+                    showNotification('Ce n\'est pas votre tour');
+                }
+            });
+
+            $('#abandonBtn').on('click', function() {
+                if (gameOver) {
+                    return;
+                }
+                $('#confirmationModal').show();
+            });
+
+            $('#closeModal, #cancelAbandon').on('click', function() {
+                $('#confirmationModal').hide();
+            });
+
+            $('#confirmAbandon').on('click', function() {
+                if (gameOver) {
+                    return;
+                }
+                $.ajax({
+                    url: '{% url "surrender_game" post_id=post.id %}',
+                    type: 'POST',
+                    headers: {
+                        'X-CSRFToken': '{{ csrf_token }}'
+                    },
+                    success: function(response) {
+                        $('#confirmationModal').hide();
+                        gameOver = true;
+                        showNotification('{{ user.username }} a abandonné la partie.');
+                        notificationShown = true;
+                        refreshGameState();
+                    },
+                    error: function(xhr, status, error) {
+                        console.error('Error surrendering the game:', error);
+                        showNotification('Erreur lors de l\'abandon de la partie');
+                    }
+                });
+            });
+
+            function showNotification(message) {
+                var notification = $('#notif');
+                notification.text(message).show();
+                setTimeout(function() {
+                    notification.fadeOut();
+                }, 2000);
+            }
+        });
+    </script>
+
+{% endblock %}
